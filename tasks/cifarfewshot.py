@@ -43,6 +43,7 @@ class CIFARFewShotTask(Task):
         self.model = construct_model(model_cfg=cfg.model, task_cfg=cfg.task).to(self.device)
         self.loss = CIFARFewShotLoss(iterations_per_image=cfg.task.iterations, num_test_images=cfg.task.nTestNovel+cfg.task.nTestBase, num_classes=cfg.task.out_dims)
         self.optimiser = AdamW(self.model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
+        self.gradient_clipping = cfg.gradient_clipping
         self.init_lazy_modules()
 
     def train(self, epoch: int) -> dict[str, float]:
@@ -55,10 +56,13 @@ class CIFARFewShotTask(Task):
             logits = self.model(inputs, aux_inputs)
             loss, _ = self.loss(logits, targets)
             loss.backward()
+    
+            if self.gradient_clipping > 0:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clipping)
+
             self.optimiser.step()
             total_loss += loss.item()
             
-            # Log batch-level train loss to wandb
             if self.logger:
                 self.logger.log("train_loss_batch", loss.item(), self.global_step)
                 self.global_step += 1
