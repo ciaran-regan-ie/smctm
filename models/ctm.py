@@ -220,6 +220,7 @@ class ContinuousThoughtMachine(nn.Module):
                  do_layernorm_nlm,
                  bias_nlm,
                  dropout=0,
+                 num_ctm_layers=1,
                 ):
         super(ContinuousThoughtMachine, self).__init__()
 
@@ -229,60 +230,22 @@ class ContinuousThoughtMachine(nn.Module):
         self.data_interaction = data_interaction
         self.memory_length = memory_length
         self.out_dims = out_dims
+        self.num_ctm_layers = num_ctm_layers
         self.output_projector = PlasticLinear(in_features=self.d_model, out_features=self.out_dims, bias=False)
         
         # --- CTM Layers ---
-        self.ctm_layer_0 = ContinuousThoughtMachineCell(
-            d_model=d_model,
-            d_input=d_input, # Size of the backbone output
-            memory_length=memory_length,
-            hidden_dim_nlm=hidden_dim_nlm,
-            do_layernorm_nlm=do_layernorm_nlm,
-            bias_nlm=bias_nlm,
-            dropout_nlm=dropout,
-        )
-
-        # self.ctm_layer_1 = C3TMLayer(
-        #     d_model=d_model,
-        #     d_input=d_input, # Size of the backbone output
-        #     memory_length=memory_length,
-        #     synchronizer=CrossCorrelationSynchronizer(d_model=d_model, n_synch=None, neuron_select_type="all", padding_amount=3, out_proj_type="shared_proj", randomize_initial_decay=True, do_layernorm=True),
-        #     # synchronizer=DotProductSynchronizer(d_model=d_model, n_synch=None, neuron_select_type="all",  initial_decay=1.0),
-        #     deep_nlms=deep_nlms,
-        #     memory_hidden_dims=memory_hidden_dims,
-        #     do_layernorm_nlm=do_layernorm_nlm,
-        #     bias_nlm=bias_nlm,
-        #     dropout=dropout,
-        #     aux_input_dim= 0
-        # )
-
-        # self.ctm_layer_2 = C3TMLayer(
-        #     d_model=d_model,
-        #     d_input=d_input, # Size of the backbone output
-        #     memory_length=memory_length,
-        #     synchronizer=CrossCorrelationSynchronizer(d_model=d_model, n_synch=None, neuron_select_type="all", padding_amount=3, out_proj_type="shared_proj", randomize_initial_decay=True, do_layernorm=True),
-        #     # synchronizer=DotProductSynchronizer(d_model=d_model, n_synch=None, neuron_select_type="all",  initial_decay=1.0),
-        #     deep_nlms=deep_nlms,
-        #     memory_hidden_dims=memory_hidden_dims,
-        #     do_layernorm_nlm=do_layernorm_nlm,
-        #     bias_nlm=bias_nlm,
-        #     dropout=dropout,
-        #     aux_input_dim= 0
-        # )
-
-        # self.ctm_layer_3 = C3TMLayer(
-        #     d_model=d_model,
-        #     d_input=d_input, # Size of the backbone output
-        #     memory_length=memory_length,
-        #     synchronizer=CrossCorrelationSynchronizer(d_model=d_model, n_synch=None, neuron_select_type="all", padding_amount=3, out_proj_type="shared_proj", randomize_initial_decay=True, do_layernorm=True),
-        #     # synchronizer=DotProductSynchronizer(d_model=d_model, n_synch=None, neuron_select_type="all",  initial_decay=1.0),
-        #     deep_nlms=deep_nlms,
-        #     memory_hidden_dims=memory_hidden_dims,
-        #     do_layernorm_nlm=do_layernorm_nlm,
-        #     bias_nlm=bias_nlm,
-        #     dropout=dropout,
-        #     aux_input_dim= 0
-        # )
+        self.ctm_layers = nn.ModuleList([
+            ContinuousThoughtMachineCell(
+                d_model=d_model,
+                d_input=d_input if i == 0 else d_model,
+                memory_length=memory_length,
+                hidden_dim_nlm=hidden_dim_nlm,
+                do_layernorm_nlm=do_layernorm_nlm,
+                bias_nlm=bias_nlm,
+                dropout_nlm=dropout,
+            )
+            for i in range(num_ctm_layers)
+        ])
 
     def synch_reshape(self, synch, do_layernorm=True):
         B = synch.size(0)
@@ -299,36 +262,32 @@ class ContinuousThoughtMachine(nn.Module):
         # --- Prepare Storage for Outputs per Iteration ---
         predictions = torch.empty(B, self.out_dims, iterations, device=device, dtype=torch.float32)
 
-        # --- Initialise Recurrent Synch Values  ---
-        ctm_layer_0_state, synchronization_layer_0 = self.ctm_layer_0.initialize_state(B)
-        # ctm_layer_1_state, synchronization_layer_1 = self.ctm_layer_1.initialize_state(B)
-        # ctm_layer_2_state, synchronization_layer_2 = self.ctm_layer_2.initialize_state(B)
-        # ctm_layer_3_state, synchronization_layer_3 = self.ctm_layer_3.initialize_state(B)
+        # --- Initialise Recurrent States for All Layers ---
+        ctm_states = []
+        synchronizations = []
+        for layer in self.ctm_layers:
+            state, synch = layer.initialize_state(B)
+            ctm_states.append(state)
+            synchronizations.append(synch)
 
         # --- Recurrent Loop  ---
         for stepi in range(iterations):
 
             # --- Featurise Input Data ---
-            input_processed, attn_weights = self.data_interaction(x[:, stepi], None, aux_inputs=aux_inputs[:, stepi] if aux_inputs is not None else None)
+            activated_state, attn_weights = self.data_interaction(x[:, stepi], None, aux_inputs=aux_inputs[:, stepi] if aux_inputs is not None else None)
+            
+            # --- Loop through CTM Layers ---
+            for layer_idx, ctm_layer in enumerate(self.ctm_layers):
+                
+                # Forward through layer
+                synchronizations[layer_idx], activated_state, ctm_states[layer_idx] = ctm_layer(activated_state, ctm_layer_state=ctm_states[layer_idx], synapse_weights_plastic=self.synch_reshape(synchronizations[layer_idx]))
 
-            # --- Pass through the CTM Layers ---
-            # synchronization_layer_0, activated_state_layer_0, ctm_layer_0_state = self.ctm_layer_0(input_processed, ctm_layer_0_state, synapse_weights_plastic=None)
-            synchronization_layer_0, activated_state_layer_0, ctm_layer_0_state = self.ctm_layer_0(input_processed, ctm_layer_0_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_0))
+                # For layers after the first, apply residual connection and layer norm
+                if layer_idx > 0:
+                    activated_state = F.layer_norm(activated_state + activated_state, normalized_shape=(self.d_model,))
 
-            # synchronization_layer_1, activated_state_layer_1, ctm_layer_1_state = self.ctm_layer_1(activated_state_layer_0, ctm_layer_1_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_1))
-            # # Add & Norm
-            # next_layer_input = F.layer_norm(activated_state_layer_0 + activated_state_layer_1, normalized_shape=(self.d_model,))
-
-            # synchronization_layer_2, activated_state_layer_2, ctm_layer_2_state = self.ctm_layer_2(next_layer_input, ctm_layer_2_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_2))
-            # # Add & Norm
-            # next_layer_input = F.layer_norm(next_layer_input + activated_state_layer_2, normalized_shape=(self.d_model,))
-
-            # synchronization_layer_3, activated_state_layer_3, ctm_layer_3_state = self.ctm_layer_3(next_layer_input, ctm_layer_3_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_3))
-            # # Add & Norm
-            # next_layer_input = F.layer_norm(next_layer_input + activated_state_layer_3, normalized_shape=(self.d_model,))
-
-            # --- Get Predictions and Certainties ---
-            current_prediction = self.output_projector(activated_state_layer_0)
+            # --- Get Predictions from Final Layer Output ---
+            current_prediction = self.output_projector(activated_state)
 
             predictions[..., stepi] = current_prediction
 
