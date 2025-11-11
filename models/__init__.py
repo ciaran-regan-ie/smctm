@@ -5,10 +5,11 @@ from omegaconf import DictConfig
 from torch import nn
 
 from models.ctm import ContinuousThoughtMachine as CTM
+from models.lstm import LSTM
 from models.backbones import ProtoNetEmbedding
 from models.interactions import CIFARFSDataInteraction
 
-_MODELS = {"CTM": CTM}
+_MODELS = {"CTM": CTM, "LSTM": LSTM}
 
 def construct_backbone(model_cfg: DictConfig, task_cfg: DictConfig):
 	if task_cfg.type == "CIFARFewShot":
