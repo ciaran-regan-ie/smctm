@@ -1,0 +1,12 @@
+# @package _global_
+
+model:
+  type: CTM
+  d_model: 256
+  d_input: 128
+  memory_length: 5
+  hidden_dim_nlm: 16
+  do_layernorm_nlm: true
+  bias_nlm: false
+  dropout: 0
+

@@ -1,0 +1,19 @@
+[project]
+name = "smctm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "hydra-core>=1.3.2",
+    "matplotlib>=3.10.7",
+    "numpy>=2.2.6",
+    "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+    "torch>=2.9.0",
+    "torchnet>=0.0.4",
+    "torchvision>=0.24.0",
+    "tqdm>=4.67.1",
+    "umap-learn>=0.5.9.post2",
+    "wandb>=0.16.0",
+]

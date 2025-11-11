@@ -1,0 +1,26 @@
+defaults:
+  - _self_
+  - task: CIFARFewShot
+  - model: CTM
+
+hydra:
+  job:
+    chdir: true  # Change working directory to output directory (default behaviour for Hydra < 1.2)
+  run:
+    dir: ./outputs/${task.type}/${model.type}/${now:%m-%d_%H-%M-%S}  # Timestamp experiments up to second precision
+
+device: [0]
+seed: 42
+epochs: 10
+batch_size: 512
+learning_rate: 1e-3
+weight_decay: 0
+plot_interval: 1
+eval_interval: 1
+
+# Weights & Biases logging
+wandb:
+  enabled: false
+  project: "smctm"
+  entity: null  # Set to your wandb username/team
+  tags: []
