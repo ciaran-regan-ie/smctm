@@ -9,4 +9,4 @@ model:
   do_layernorm_nlm: true
   bias_nlm: false
   dropout: 0.1
-  num_ctm_layers: 2
+  num_ctm_layers: 1

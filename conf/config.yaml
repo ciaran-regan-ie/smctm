@@ -15,13 +15,12 @@ epochs: 30
 batch_size: 512
 learning_rate: 1e-3
 gradient_clipping: 5.0
-weight_decay: 0
+weight_decay: 5e-4
 plot_interval: 1
 eval_interval: 1
 
-# Weights & Biases logging
 wandb:
-  enabled: false
+  enabled: true
   project: "smctm"
-  entity: null  # Set to your wandb username/team
+  entity: null
   tags: []

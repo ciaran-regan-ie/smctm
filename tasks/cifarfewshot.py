@@ -107,7 +107,7 @@ class CIFARFewShotTask(Task):
         aux_input_shape = (B, total_internal_ticks, self.train_dataloader.nKnovel)
         aux_inputs = torch.zeros(aux_input_shape, device=self.device).float()
         pseudo_inputs = torch.zeros(input_shape, device=self.device).float()
-        self.model(pseudo_inputs, aux_inputs=aux_inputs, track=False)
+        self.model(pseudo_inputs, aux_inputs=aux_inputs)
         pass
         
 class CIFARFewShotLoss(nn.Module):

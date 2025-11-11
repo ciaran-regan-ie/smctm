@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 import math
 
 class Identity(nn.Module):
@@ -48,9 +47,10 @@ class SuperLinear(nn.Module):
 
 
 class PlasticLinear(nn.Module):
-    def __init__(self, in_features, out_features, bias=False, do_layernorm=False):
+    def __init__(self, in_features, hidden_features, out_features, bias=False, do_layernorm=False):
         super().__init__()
         self.in_features = in_features
+        self.hidden_features = hidden_features
         self.out_features = out_features
 
         self.weights_fixed = nn.Parameter(torch.empty(out_features, out_features))
@@ -63,7 +63,7 @@ class PlasticLinear(nn.Module):
         else:
             self.register_parameter('bias', None)
 
-        self.proj_to_d_model = nn.LazyLinear(out_features) # Assumes in features is d_model
+        self.proj_to_d_model = nn.LazyLinear(hidden_features)
 
         self.do_layernorm = do_layernorm
         if self.do_layernorm:
@@ -78,7 +78,7 @@ class PlasticLinear(nn.Module):
 
         B = x.shape[0]
 
-        x = self.proj_to_d_model(x)
+        x = self.proj_to_d_model(x) # (B, _) -> (B, hidden_features)
 
         weights_fixed = self.weights_fixed.unsqueeze(0).expand(B, -1, -1)
         
@@ -159,7 +159,7 @@ class ContinuousThoughtMachineCell(nn.Module):
         self.hidden_dim_nlm = hidden_dim_nlm
 
         # --- Core CTM Modules ---
-        self.synapses = PlasticLinear(in_features=(d_input+d_model), out_features=d_model, bias=False, do_layernorm=True)
+        self.synapses = PlasticLinear(in_features=(d_input+d_model), hidden_features=d_model, out_features=d_model, bias=False, do_layernorm=True)
         self.nlms = nn.Sequential(
                         nn.Sequential(
                             SuperLinear(in_dims=memory_length, out_dims=2 * hidden_dim_nlm, N=d_model, do_norm=False, dropout=dropout_nlm, bias=bias_nlm),
@@ -231,8 +231,11 @@ class ContinuousThoughtMachine(nn.Module):
         self.memory_length = memory_length
         self.out_dims = out_dims
         self.num_ctm_layers = num_ctm_layers
-        self.output_projector = PlasticLinear(in_features=self.d_model, out_features=self.out_dims, bias=False)
-        
+        self.output_projector = nn.Sequential(
+            nn.Linear(in_features=d_model, out_features=512, bias=True),
+            nn.Linear(in_features=512, out_features=out_dims, bias=False)
+        )
+                
         # --- CTM Layers ---
         self.ctm_layers = nn.ModuleList([
             ContinuousThoughtMachineCell(
@@ -253,7 +256,7 @@ class ContinuousThoughtMachine(nn.Module):
             synch = F.layer_norm(synch, normalized_shape=(self.d_model ** 2,))
         return synch.view(B, self.d_model, self.d_model)
 
-    def forward(self, x, aux_inputs=None, track=False):
+    def forward(self, x, aux_inputs=None):
 
         B, iterations, *input_shape = x.shape
 
@@ -275,21 +278,20 @@ class ContinuousThoughtMachine(nn.Module):
 
             # --- Featurise Input Data ---
             activated_state, attn_weights = self.data_interaction(x[:, stepi], None, aux_inputs=aux_inputs[:, stepi] if aux_inputs is not None else None)
-            
+
             # --- Loop through CTM Layers ---
             for layer_idx, ctm_layer in enumerate(self.ctm_layers):
-                
+
+                residual = activated_state
+
                 # Forward through layer
                 synchronizations[layer_idx], activated_state, ctm_states[layer_idx] = ctm_layer(activated_state, ctm_layer_state=ctm_states[layer_idx], synapse_weights_plastic=self.synch_reshape(synchronizations[layer_idx]))
 
                 # For layers after the first, apply residual connection and layer norm
                 if layer_idx > 0:
-                    activated_state = F.layer_norm(activated_state + activated_state, normalized_shape=(self.d_model,))
+                    activated_state = F.layer_norm(residual + activated_state, normalized_shape=(self.d_model,))
 
             # --- Get Predictions from Final Layer Output ---
-            current_prediction = self.output_projector(activated_state)
+            predictions[..., stepi] = self.output_projector(activated_state)
 
-            predictions[..., stepi] = current_prediction
-
-        # --- Return Values ---
         return predictions
