@@ -15,7 +15,7 @@ class CIFARFewShotTask(Task):
         super().__init__()
         self.device = get_device(cfg)
         self.logger = logger
-        self.global_step = 0  # Track global step for batch-level logging
+        self.global_step = 0
         train_base_dataset = CIFARFewShotDataset(phase='train')
         test_base_dataset = CIFARFewShotDataset(phase='test')
         self.train_dataloader = FewShotDataloader(
@@ -45,6 +45,8 @@ class CIFARFewShotTask(Task):
         self.optimiser = AdamW(self.model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
         self.gradient_clipping = cfg.gradient_clipping
         self.init_lazy_modules()
+        print(f"Total Parameter Count: {self.get_parameter_count()}")
+        print(f"Backbone Parameter Count: {self.get_backbone_parameter_count()}")
 
     def train(self, epoch: int) -> dict[str, float]:
         self.model.train()
@@ -54,7 +56,7 @@ class CIFARFewShotTask(Task):
             inputs, aux_inputs, targets = inputs.to(self.device), aux_inputs.to(self.device), targets.to(self.device)
             self.optimiser.zero_grad()
             logits = self.model(inputs, aux_inputs)
-            loss, _ = self.loss(logits, targets)
+            loss, info = self.loss(logits, targets)
             loss.backward()
     
             if self.gradient_clipping > 0:
@@ -63,26 +65,25 @@ class CIFARFewShotTask(Task):
             self.optimiser.step()
             total_loss += loss.item()
             
+            train_accuracy_batch = self.calculate_accuracy(logits, info, targets)
+            
             if self.logger:
                 self.logger.log("train_loss_batch", loss.item(), self.global_step)
+                self.logger.log("train_accuracy_batch", train_accuracy_batch, self.global_step)
                 self.global_step += 1
             
-            # Update progress bar with current batch loss
-            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
-        
+            pbar.set_postfix({"loss": f"{loss.item():.4f}","accuracy": f"{train_accuracy_batch:.4f}"})        
         return {"loss": total_loss / len(self.train_dataloader)}
 
+    def calculate_accuracy(self, predictions, info, targets):
+        # For CifarFewShot we calculate the accuracy as the accuracy of the first test image only.
+        answer_timestep = info["loss_index_2"]
+        targets = targets[:, answer_timestep]
+        predictions = predictions[:, :, answer_timestep].argmax(1)
+        accuracy = (predictions == targets).float().mean().item()
+        return accuracy
+
     def eval(self, epoch: int) -> dict[str, float]:
-
-        def calculate_accuracy(predictions, info, targets):
-            # For CifarFewShot we calculate the accuracy as the accuracy of the first test image only.
-            answer_timestep = info["loss_index_2"]
-            targets = targets[:, answer_timestep]
-            predictions = predictions.reshape(predictions.size(0), -1, 5, predictions.size(-1)) # Assuming 5 classes
-            pred_at_answer_timestep = predictions.argmax(2)[torch.arange(predictions.size(0), device=predictions.device), :, answer_timestep]
-            correct = (pred_at_answer_timestep == targets).sum().item()
-            return correct
-
         self.model.eval()
         total_loss, accuracy = 0, 0
         for (inputs, aux_inputs), targets in tqdm(self.test_dataloader, leave=False, desc=f"Eval Epoch {epoch}"):
@@ -91,9 +92,9 @@ class CIFARFewShotTask(Task):
                 predictions = self.model(inputs, aux_inputs)
                 loss, info = self.loss(predictions, targets)
                 total_loss += loss.item()
-                accuracy += calculate_accuracy(predictions, info, targets)
+                accuracy += self.calculate_accuracy(predictions, info, targets)
 
-        return {"loss": total_loss / len(self.test_dataloader), "accuracy": accuracy /  (self.test_dataloader.epoch_size*self.test_dataloader.batch_size)}
+        return {"loss": total_loss / len(self.test_dataloader), "accuracy": accuracy /  len(self.test_dataloader)}
 
     def calculate_performance(self, metrics: dict[str, float]) -> float:
         accuracies = [pair[1] for pair in metrics["eval_accuracy"]]

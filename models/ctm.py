@@ -294,15 +294,6 @@ class ContinuousThoughtMachine(nn.Module):
 
         B, iterations, *input_shape = x.shape
 
-        if hasattr(self.ctm_layer_0.synchronizer, 'reset_buffers'):
-            self.ctm_layer_0.synchronizer.reset_buffers(B)
-        # if hasattr(self.ctm_layer_1.synchronizer, 'reset_buffers'):
-        #     self.ctm_layer_1.synchronizer.reset_buffers(B)
-        # if hasattr(self.ctm_layer_2.synchronizer, 'reset_buffers'):
-        #     self.ctm_layer_2.synchronizer.reset_buffers(B)
-        # if hasattr(self.ctm_layer_3.synchronizer, 'reset_buffers'):
-        #     self.ctm_layer_3.synchronizer.reset_buffers(B)
-
         device = x.device
 
         # --- Prepare Storage for Outputs per Iteration ---
@@ -321,8 +312,8 @@ class ContinuousThoughtMachine(nn.Module):
             input_processed, attn_weights = self.data_interaction(x[:, stepi], None, aux_inputs=aux_inputs[:, stepi] if aux_inputs is not None else None)
 
             # --- Pass through the CTM Layers ---
-            synchronization_layer_0, activated_state_layer_0, ctm_layer_0_state = self.ctm_layer_0(input_processed, ctm_layer_0_state, synapse_weights_plastic=None)
-            # synchronization_layer_0, activated_state_layer_0, ctm_layer_0_state = self.ctm_layer_0(input_processed, ctm_layer_0_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_0))
+            # synchronization_layer_0, activated_state_layer_0, ctm_layer_0_state = self.ctm_layer_0(input_processed, ctm_layer_0_state, synapse_weights_plastic=None)
+            synchronization_layer_0, activated_state_layer_0, ctm_layer_0_state = self.ctm_layer_0(input_processed, ctm_layer_0_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_0))
 
             # synchronization_layer_1, activated_state_layer_1, ctm_layer_1_state = self.ctm_layer_1(activated_state_layer_0, ctm_layer_1_state, synapse_weights_plastic=self.synch_reshape(synchronization_layer_1))
             # # Add & Norm
@@ -337,7 +328,7 @@ class ContinuousThoughtMachine(nn.Module):
             # next_layer_input = F.layer_norm(next_layer_input + activated_state_layer_3, normalized_shape=(self.d_model,))
 
             # --- Get Predictions and Certainties ---
-            current_prediction = self.output_projector(synchronization_layer_0)
+            current_prediction = self.output_projector(activated_state_layer_0)
 
             predictions[..., stepi] = current_prediction
 

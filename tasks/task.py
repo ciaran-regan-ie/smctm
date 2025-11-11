@@ -14,11 +14,18 @@ class Task(ABC):
 		pass
 
 	@abstractmethod
+	def	calculate_accuracy(self, predictions, info, targets) -> float:
+		pass
+
+	@abstractmethod
 	def init_lazy_modules(self):
 		pass
 
 	def get_parameter_count(self) -> int:
 		return sum(param.numel() for param in self.model.parameters())
+
+	def get_backbone_parameter_count(self) -> int:
+		return sum(param.numel() for param in self.model.data_interaction.backbone.parameters())
 
 	def perform_diagnostics(self):
 		pass
