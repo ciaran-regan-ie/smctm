@@ -221,6 +221,7 @@ class ContinuousThoughtMachine(nn.Module):
                  bias_nlm,
                  dropout=0,
                  num_ctm_layers=1,
+                 plastic=False
                 ):
         super(ContinuousThoughtMachine, self).__init__()
 
@@ -231,6 +232,7 @@ class ContinuousThoughtMachine(nn.Module):
         self.memory_length = memory_length
         self.out_dims = out_dims
         self.num_ctm_layers = num_ctm_layers
+        self.plastic = plastic
         self.output_projector = nn.Sequential(
             nn.Linear(in_features=d_model, out_features=512, bias=True),
             nn.Linear(in_features=512, out_features=out_dims, bias=False)
@@ -285,7 +287,7 @@ class ContinuousThoughtMachine(nn.Module):
                 residual = activated_state
 
                 # Forward through layer
-                synchronizations[layer_idx], activated_state, ctm_states[layer_idx] = ctm_layer(activated_state, ctm_layer_state=ctm_states[layer_idx], synapse_weights_plastic=self.synch_reshape(synchronizations[layer_idx]))
+                synchronizations[layer_idx], activated_state, ctm_states[layer_idx] = ctm_layer(activated_state, ctm_layer_state=ctm_states[layer_idx], synapse_weights_plastic=self.synch_reshape(synchronizations[layer_idx]) if self.plastic else None)
 
                 # For layers after the first, apply residual connection and layer norm
                 if layer_idx > 0:

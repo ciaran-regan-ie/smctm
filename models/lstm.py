@@ -52,6 +52,57 @@ class LSTMCell(nn.Module):
     h_1, c_1 = self._calculate_cell_hidden_updates(c_0, forget_gate, in_gate, out_gate, cell_gate)
     return h_1, (h_1, c_1)
 
+# Plastic LSTM, from "Backpropamine: training self-modifying neural networks with differentiable neuromodulated plasticity"
+class PlasticLSTMCell(LSTMCell):
+  def __init__(self, input_size: int, hidden_size: int, dropout: float = 0, layer_norm: bool = False, T_max: int | None = None, neuromodulation: str | None = None):
+    super().__init__(input_size, hidden_size, dropout=dropout, layer_norm=layer_norm, T_max=T_max)
+    self.neuromodulation = neuromodulation
+    self.alpha = nn.Parameter(torch.full((hidden_size, hidden_size), 0.01))  # Plasticity coefficient
+    if neuromodulation:
+      self.M = nn.Sequential(nn.Linear(hidden_size, hidden_size * hidden_size), nn.Tanh())  # Neuromodulation module
+    if neuromodulation is None or neuromodulation == "retroactive":
+      self.eta = nn.Parameter(torch.empty((1, )))  # Plasticity/eligibility trace learning rate
+    self.reset_parameters()
+
+  def reset_parameters(self):
+    super().reset_parameters()
+    if hasattr(self, "neuromodulation"):
+      if self.neuromodulation:
+        nn.init.orthogonal_(self.M[0].weight)
+        nn.init.zeros_(self.M[0].bias)
+      if self.neuromodulation is None or self.neuromodulation == "retroactive":
+        nn.init.constant_(self.eta, 0.01)
+
+  def _calculate_gates(self, input: Tensor, h_0: Tensor, Hebb_0: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:  # noqa: A002
+    weight_h = self.weight_h.unsqueeze(dim=0) + torch.cat([torch.zeros(input.shape[0], self.hidden_size, 3 * self.hidden_size, device=input.device), self.alpha.unsqueeze(dim=0) * Hebb_0], dim=2)  # Add plastic weights for the cell gate: W_h + α⋅Hebb_t-1
+    if self.layer_norm:  # noqa: SIM108
+      gates = self.ln_1(torch.einsum("bi,bih->bh", h_0, weight_h)) + self.ln_2(input @ self.weight_x) + self.bias.unsqueeze(0)  # f_t, i_t, o_t, g_t = LN((W_h + α⋅Hebb_t-1)⋅h_t−1; α_1, β_1) + LN(W_x⋅x_t; α_2, β_2) + b
+    else:
+      gates = torch.einsum("bi,bih->bh", h_0, weight_h) + input @ self.weight_x + self.bias.unsqueeze(0)  # f_t, i_t, o_t, g_t = (W_h + α⋅Hebb_t-1)⋅h_t−1 + W_x⋅x_t + b
+    return gates.chunk(4, dim=1)
+
+  def forward(self, input: Tensor, state: tuple[Tensor, Tensor, ...] | None) -> tuple[Tensor, tuple[Tensor, Tensor, ...]]:  # noqa: A002
+    assert input.ndim == 2, "Input should be of size B x D"
+    B = input.shape[0]
+    if self.neuromodulation == "retroactive":
+      h_0, c_0, Hebb_0, E_0 = state if state is not None else (self.h_0.unsqueeze(0), self.c_0.unsqueeze(0), torch.zeros(B, self.hidden_size, self.hidden_size, device=input.device), torch.zeros(B, self.hidden_size, self.hidden_size, device=input.device))
+    else:
+      h_0, c_0, Hebb_0 = state if state is not None else (self.h_0.unsqueeze(0), self.c_0.unsqueeze(0), torch.zeros(B, self.hidden_size, self.hidden_size, device=input.device))
+
+    forget_gate, in_gate, out_gate, cell_gate = self._calculate_gates(input, h_0, Hebb_0)
+    h_1, c_1 = self._calculate_cell_hidden_updates(c_0, forget_gate, in_gate, out_gate, cell_gate)
+
+    if self.neuromodulation == "simple":
+      Hebb_1 = torch.clip(Hebb_0 + self.M(h_0).view(-1, self.hidden_size, self.hidden_size) * torch.einsum("bh,bi->bhi", h_0, torch.tanh(cell_gate)), min=-1, max=1)  # Hebb_i,j_t = Clip(Hebb_i,j_t-1 + M_t-1⋅x_i_t-1 ⊗ x_j_t)
+      return h_1, (h_1, c_1, Hebb_1)
+    elif self.neuromodulation == "retroactive":
+      Hebb_1 = torch.clip(Hebb_0 + self.M(h_0).view(-1, self.hidden_size, self.hidden_size) * E_0, min=-1, max=1)  # Hebb_t = Clip(Hebb_t-1 + M_t-1⋅E_t-1)
+      E_1 = (1 - self.eta) * E_0 + self.eta * torch.einsum("bh,bi->bhi", h_0, torch.tanh(cell_gate))  # E_i,j_t = (1 − η)E_i,j_t-1 + η⋅x_i_t-1 ⊗ x_j_t
+      return h_1, (h_1, c_1, Hebb_1, E_1)
+    else:
+      Hebb_1 = torch.clip(Hebb_0 + self.eta * torch.einsum("bh,bi->bhi", h_0, torch.tanh(cell_gate)), min=-1, max=1)  # Hebb_i,j_t = Clip(Hebb_i,j_t-1 + η⋅x_i_t-1 ⊗ x_j_t)
+      return h_1, (h_1, c_1, Hebb_1)
+
 
 class LSTM(nn.Module):
   def __init__(self,
@@ -62,15 +113,18 @@ class LSTM(nn.Module):
                dropout=0,
                layer_norm=False,
                num_lstm_layers=1,
+               plastic=False
                ):
     super().__init__()
 
     self.data_interaction = data_interaction
     self.out_dims = out_dims
     self.d_model = d_model
+    self.plastic = plastic
 
+    cell = PlasticLSTMCell if plastic else LSTMCell
     self.lstm_layers = nn.ModuleList([
-        LSTMCell(d_input if layer_idx == 0 else d_model, d_model, dropout=dropout, layer_norm=layer_norm)
+        cell(d_input if layer_idx == 0 else d_model, d_model, dropout=dropout, layer_norm=layer_norm)
         for layer_idx in range(num_lstm_layers)
     ])
 

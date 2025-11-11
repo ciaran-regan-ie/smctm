@@ -13,5 +13,10 @@ unzip data/raw_data/CIFAR-FS.zip -d data/cifar_fs/
 
 Run the train script with
 ```bash
-uv run main.py task=CIFARFewShot model=CTM wandb.enabled=true
+uv run main.py task=<TASK> model=<MODEL> model.plastic=<PLASTIC>
 ```
+
+where:
+- `TASK` is one of: `CIFARFewShot`
+- `MODEL` is one of: `LSTM`, `CTM`
+- `PLASTIC` is one of: `true`, `false`
