@@ -233,9 +233,11 @@ class ContinuousThoughtMachine(nn.Module):
         self.out_dims = out_dims
         self.num_ctm_layers = num_ctm_layers
         self.plastic = plastic
+
         self.output_projector = nn.Sequential(
             nn.Linear(in_features=d_model, out_features=512, bias=True),
-            nn.Linear(in_features=512, out_features=out_dims, bias=False)
+            nn.LayerNorm(512),
+            nn.Linear(in_features=512, out_features=out_dims, bias=True),
         )
                 
         # --- CTM Layers ---

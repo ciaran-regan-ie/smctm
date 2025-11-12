@@ -103,7 +103,6 @@ class PlasticLSTMCell(LSTMCell):
       Hebb_1 = torch.clip(Hebb_0 + self.eta * torch.einsum("bh,bi->bhi", h_0, torch.tanh(cell_gate)), min=-1, max=1)  # Hebb_i,j_t = Clip(Hebb_i,j_t-1 + η⋅x_i_t-1 ⊗ x_j_t)
       return h_1, (h_1, c_1, Hebb_1)
 
-
 class LSTM(nn.Module):
   def __init__(self,
                data_interaction,
@@ -130,9 +129,9 @@ class LSTM(nn.Module):
 
     self.output_projector = nn.Sequential(
         nn.Linear(in_features=d_model, out_features=512, bias=True),
-        nn.Linear(in_features=512, out_features=out_dims, bias=False)
+        nn.LayerNorm(512),
+        nn.Linear(in_features=512, out_features=out_dims, bias=True),
     )
-
 
   def forward(self, x, aux_inputs=None):
 
