@@ -220,7 +220,7 @@ class ContinuousThoughtMachine(nn.Module):
                  do_layernorm_nlm,
                  bias_nlm,
                  dropout=0,
-                 num_ctm_layers=1,
+                 num_layers=1,
                  plastic=False
                 ):
         super(ContinuousThoughtMachine, self).__init__()
@@ -231,7 +231,7 @@ class ContinuousThoughtMachine(nn.Module):
         self.data_interaction = data_interaction
         self.memory_length = memory_length
         self.out_dims = out_dims
-        self.num_ctm_layers = num_ctm_layers
+        self.num_layers = num_layers
         self.plastic = plastic
 
         self.output_projector = nn.Sequential(
@@ -251,7 +251,7 @@ class ContinuousThoughtMachine(nn.Module):
                 bias_nlm=bias_nlm,
                 dropout_nlm=dropout,
             )
-            for i in range(num_ctm_layers)
+            for i in range(num_layers)
         ])
 
     def synch_reshape(self, synch, do_layernorm=True):

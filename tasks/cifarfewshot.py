@@ -96,9 +96,10 @@ class CIFARFewShotTask(Task):
 
         return {"loss": total_loss / len(self.test_dataloader), "accuracy": accuracy /  len(self.test_dataloader)}
 
-    def calculate_performance(self, metrics: dict[str, float]) -> float:
+    def calculate_performance(self, metrics: dict[str, float], window_size: int = 5) -> float:
         accuracies = [pair[1] for pair in metrics["eval_accuracy"]]
-        return sum(accuracies) / len(accuracies) if accuracies else 0.0
+        recent_accuracies = accuracies[-window_size:]
+        return sum(recent_accuracies) / len(recent_accuracies) if recent_accuracies else 0.0
 
     def init_lazy_modules(self):
         B, T = 1, self.train_dataloader.internal_ticks

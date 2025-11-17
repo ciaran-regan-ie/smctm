@@ -6,5 +6,5 @@ model:
   d_input: 256
   dropout: 0.1
   layer_norm: true
-  num_lstm_layers: 1
+  num_layers: 1
   plastic: true

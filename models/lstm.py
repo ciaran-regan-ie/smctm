@@ -111,7 +111,7 @@ class LSTM(nn.Module):
                d_input,
                dropout=0,
                layer_norm=False,
-               num_lstm_layers=1,
+               num_layers=1,
                plastic=False
                ):
     super().__init__()
@@ -124,7 +124,7 @@ class LSTM(nn.Module):
     cell = PlasticLSTMCell if plastic else LSTMCell
     self.lstm_layers = nn.ModuleList([
         cell(d_input if layer_idx == 0 else d_model, d_model, dropout=dropout, layer_norm=layer_norm)
-        for layer_idx in range(num_lstm_layers)
+        for layer_idx in range(num_layers)
     ])
 
     self.output_projector = nn.Sequential(

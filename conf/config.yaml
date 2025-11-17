@@ -2,18 +2,45 @@ defaults:
   - _self_
   - task: CIFARFewShot
   - model: CTM
+  - optional hyperparameter_search_space: ${model}
+  - override hydra/sweeper: optuna
+  - override hydra/launcher: submitit_slurm
 
 hydra:
   job:
     chdir: true  # Change working directory to output directory (default behaviour for Hydra < 1.2)
   run:
     dir: ./outputs/${task.type}/${model.type}/${now:%m-%d_%H-%M-%S}  # Timestamp experiments up to second precision
+  sweep:
+    dir: ./outputs/${task.type}/${model.type}/hyperparameter_search/${now:%m-%d_%H-%M-%S}
+  launcher:
+    _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
+    partition: a3
+    timeout_min: 1440  # 24 hours
+    cpus_per_task: 8
+    gpus_per_node: 1
+    mem_gb: 128
+    tasks_per_node: 1
+    nodes: 1
+  sweeper:
+    _target_: hydra_plugins.hydra_optuna_sweeper.optuna_sweeper.OptunaSweeper
+    study_name: ${task.type}_${model.type}
+    storage: null
+    direction: maximize
+    n_trials: 48
+    n_jobs: 6
+    sampler:
+      _target_: optuna.samplers.TPESampler
+      n_startup_trials: 10
+      n_ei_candidates: 24
+      multivariate: true
+      warn_independent_sampling: false
 
 device: [0]
 seed: 42
-epochs: 50
+epochs: 40
 batch_size: 512
-learning_rate: 1e-3
+learning_rate: 0.0008
 gradient_clipping: 5.0
 weight_decay: 5e-4
 plot_interval: 1

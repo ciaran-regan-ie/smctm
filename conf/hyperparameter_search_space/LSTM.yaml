@@ -1,0 +1,7 @@
+# @package hydra.sweeper
+
+params:
+  model.dropout: interval(0, 0.5)
+  learning_rate: interval(1e-4, 1e-3)
+  model.num_layers: choice(1, 2)
+  model.d_model: choice(128, 256)
