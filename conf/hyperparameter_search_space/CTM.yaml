@@ -3,4 +3,4 @@
 params:
   model.dropout: interval(0, 0.6)
   learning_rate: interval(1e-4, 1e-3)
-  learn_rate_scheduler_final_factor: choice(0.0, 0.1, 0.01, 0.001)
+  learn_rate_scheduler_final_factor: choice(1.0, 0.1, 0.01, 0.001)
