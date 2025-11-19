@@ -79,29 +79,39 @@ class CIFARFewShotTask(Task):
             total_loss += loss.item()
             
             train_accuracy_batch = self.calculate_accuracy(logits, info, targets)
+            train_accuracy_all_images_batch = self.calculate_accuracy_all_images(logits, info, targets)
             
             if self.logger:
                 self.logger.log("train_loss_batch", loss.item(), self.global_step)
                 self.logger.log("train_accuracy_batch", train_accuracy_batch, self.global_step)
+                self.logger.log("train_accuracy_all_images_batch", train_accuracy_all_images_batch, self.global_step)
                 self.global_step += 1
             
-            pbar.set_postfix({"loss": f"{loss.item():.4f}","accuracy": f"{train_accuracy_batch:.4f}"})
-
+            pbar.set_postfix({"loss": f"{loss.item():.4f}","accuracy": f"{train_accuracy_batch:.4f}", "accuracy_all_images": f"{train_accuracy_all_images_batch:.4f}"})
         self.scheduler.step()
         
         return {"loss": total_loss / len(self.train_dataloader), "lr": self.scheduler.get_last_lr()[0]}
 
     def calculate_accuracy(self, predictions, info, targets):
         # For CifarFewShot we calculate the accuracy as the accuracy of the first test image only.
-        answer_timestep = info["loss_index_2"]
-        targets = targets[:, answer_timestep]
-        predictions = predictions[:, :, answer_timestep].argmax(1)
+        answer_timestep = info["prediction_timesteps"][0]
+        targets = targets[:, answer_timestep] # (B, ((num_train_images + num_test_images) * iterations_per_image)) -> (B,)
+        predictions = predictions[:, :, answer_timestep].argmax(1) # (B, num_classes, ((num_train_images + num_test_images) * iterations_per_image)) -> (B,)
         accuracy = (predictions == targets).float().mean().item()
+        return accuracy
+
+    def calculate_accuracy_all_images(self, predictions, info, targets):
+        # Get the test accuracy as the prediction at the end of each images thought steps
+        answer_timesteps = info["prediction_timesteps"]  # List of timestep indices
+        timesteps_tensor = torch.tensor(answer_timesteps, device=predictions.device)  # (num_test_images,)
+        targets_at_timesteps = targets[:, timesteps_tensor]  # (B, num_timesteps)
+        predictions_at_timesteps = predictions[:, :, timesteps_tensor].argmax(dim=1)  # (B, num_timesteps)        
+        accuracy = (predictions_at_timesteps == targets_at_timesteps).float().mean().item()
         return accuracy
 
     def eval(self, epoch: int) -> dict[str, float]:
         self.model.eval()
-        total_loss, accuracy = 0, 0
+        total_loss, accuracy, accuracy_all_images = 0, 0, 0
         for (inputs, aux_inputs), targets in tqdm(self.test_dataloader, leave=False, desc=f"Eval Epoch {epoch}"):
             with torch.inference_mode():
                 inputs, aux_inputs, targets = inputs.to(self.device), aux_inputs.to(self.device), targets.to(self.device)
@@ -109,8 +119,8 @@ class CIFARFewShotTask(Task):
                 loss, info = self.loss(predictions, targets)
                 total_loss += loss.item()
                 accuracy += self.calculate_accuracy(predictions, info, targets)
-
-        return {"loss": total_loss / len(self.test_dataloader), "accuracy": accuracy /  len(self.test_dataloader)}
+                accuracy_all_images += self.calculate_accuracy_all_images(predictions, info, targets)
+        return {"loss": total_loss / len(self.test_dataloader), "accuracy": accuracy /  len(self.test_dataloader), "accuracy_all_images": accuracy_all_images /  len(self.test_dataloader)}
 
     def calculate_performance(self, metrics: dict[str, float], window_size: int = 5) -> float:
         accuracies = [pair[1] for pair in metrics["eval_accuracy"]]
@@ -150,7 +160,7 @@ class CIFARFewShotLoss(nn.Module):
         # Following the evaluation procedure of https://arxiv.org/abs/2302.03235, we only consider the first image when calculating the accuracy
         # For the CTM, which process each image for self.iterations_per_image steps, we take the last thought step of the first image
         info = {
-            'loss_index_2': (self.iterations_per_image * self.num_test_images) + (self.iterations_per_image - 1)
+            'prediction_timesteps': [((self.iterations_per_image * self.num_test_images) + (self.iterations_per_image * i + (self.iterations_per_image - 1))) for i in range(self.num_test_images)]
         }
 
         return loss, info
