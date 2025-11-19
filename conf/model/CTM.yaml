@@ -5,7 +5,7 @@ model:
   d_model: 256
   d_input: 256
   memory_length: 10
-  hidden_dim_nlm: 16
+  hidden_dim_nlm: 32
   do_layernorm_nlm: false
   bias_nlm: false
   dropout: 0.22

@@ -20,6 +20,9 @@ class LocalLogger:
 			task_type = cfg.get("task", {}).get("type", "")
 			model_type = cfg.get("model", {}).get("type", "")
 			timestamp = os.path.basename(os.getcwd())
+			task_subtype = cfg.get("task", {}).get("subtype")
+			if task_subtype is not None:
+				task_type += f"_{task_subtype}"
 			run_name = f"{task_type}_{model_type}_{timestamp}"
 			
 			wandb.init(
