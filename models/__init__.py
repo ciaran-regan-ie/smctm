@@ -12,16 +12,16 @@ from models.interactions import FewShotImageClassificationDataInteraction
 _MODELS = {"CTM": CTM, "LSTM": LSTM}
 
 def construct_backbone(model_cfg: DictConfig, task_cfg: DictConfig):
-	if task_cfg.type == "FewShotImageClassification":
+	if task_cfg.type in ("FewShotImageClassification", "FewShotCIFAR", "FewShotMiniImageNet"):
 		return ProtoNetEmbedding(3, 64, 64)
 	else:
-		raise ValueError(f"Unsupported task type: {task_cfg.task}")
+		raise ValueError(f"Unsupported task type: {task_cfg.type}")
 
 def construct_data_interaction(model_cfg: DictConfig, task_cfg: DictConfig):
-	if task_cfg.type == "FewShotImageClassification":
+	if task_cfg.type in ("FewShotImageClassification", "FewShotCIFAR", "FewShotMiniImageNet"):
 		return FewShotImageClassificationDataInteraction(backbone=construct_backbone(model_cfg, task_cfg), d_input=model_cfg.d_input)
 	else:
-		raise ValueError(f"Unsupported task type: {task_cfg.task}")
+		raise ValueError(f"Unsupported task type: {task_cfg.type}")
 
 # Constructs model based the model config
 def construct_model(model_cfg: DictConfig, task_cfg: DictConfig) -> nn.Module:

@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - task: FewShotImageClassification
+  - task: FewShotCIFAR
   - model: CTM
   - optional hyperparameter_search_space: ${model}
   - override hydra/sweeper: optuna

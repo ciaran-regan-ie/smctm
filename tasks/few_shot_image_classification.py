@@ -16,8 +16,8 @@ class FewShotImageClassificationTask(Task):
         self.logger = logger
         self.global_step = 0
         
-        train_base_dataset = FewShotDataset(dataset_name=cfg.task.subtype, phase='train')
-        test_base_dataset = FewShotDataset(dataset_name=cfg.task.subtype, phase='test')
+        train_base_dataset = FewShotDataset(dataset_name=cfg.task.dataset, phase='train')
+        test_base_dataset = FewShotDataset(dataset_name=cfg.task.dataset, phase='test')
         
         self.train_dataloader = FewShotDataloader(
             dataset=train_base_dataset,
