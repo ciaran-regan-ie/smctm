@@ -43,6 +43,19 @@ class CIFARFewShotTask(Task):
         self.model = construct_model(model_cfg=cfg.model, task_cfg=cfg.task).to(self.device)
         self.loss = CIFARFewShotLoss(iterations_per_image=cfg.task.iterations, num_test_images=cfg.task.nTestNovel+cfg.task.nTestBase, num_classes=cfg.task.out_dims)
         self.optimiser = AdamW(self.model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
+
+        assert cfg.learn_rate_scheduler in ("none", "cosine_annealing", "linear", "cosine_annealing_warm_restarts", "multi_step"), f"Learning rate scheduler {cfg.learn_rate_scheduler} not supported."
+        if cfg.learn_rate_scheduler == "none":
+            self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimiser, lr_lambda=lambda epoch: 1.0)
+        elif cfg.learn_rate_scheduler == "cosine_annealing":
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimiser, T_max=cfg.epochs, eta_min=cfg.learning_rate * cfg.learn_rate_scheduler_final_factor)
+        elif cfg.learn_rate_scheduler == "linear":
+            self.scheduler = torch.optim.lr_scheduler.LinearLR(self.optimiser, start_factor=1, end_factor=cfg.learn_rate_scheduler_final_factor, total_iters=cfg.epochs)
+        elif cfg.learn_rate_scheduler == "cosine_annealing_warm_restarts":
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimiser, T_0=10, T_mult=1, eta_min=cfg.learning_rate * cfg.learn_rate_scheduler_final_factor)
+        elif cfg.learn_rate_scheduler == "multi_step":
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimiser, milestones=[int(cfg.epochs*0.5), int(cfg.epochs*0.75)], gamma=0.1)
+        
         self.gradient_clipping = cfg.gradient_clipping
         self.init_lazy_modules()
         print(f"Total Parameter Count: {self.get_parameter_count()}")
@@ -72,8 +85,11 @@ class CIFARFewShotTask(Task):
                 self.logger.log("train_accuracy_batch", train_accuracy_batch, self.global_step)
                 self.global_step += 1
             
-            pbar.set_postfix({"loss": f"{loss.item():.4f}","accuracy": f"{train_accuracy_batch:.4f}"})        
-        return {"loss": total_loss / len(self.train_dataloader)}
+            pbar.set_postfix({"loss": f"{loss.item():.4f}","accuracy": f"{train_accuracy_batch:.4f}"})
+
+        self.scheduler.step()
+        
+        return {"loss": total_loss / len(self.train_dataloader), "lr": self.scheduler.get_last_lr()[0]}
 
     def calculate_accuracy(self, predictions, info, targets):
         # For CifarFewShot we calculate the accuracy as the accuracy of the first test image only.

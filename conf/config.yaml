@@ -40,7 +40,9 @@ device: [0]
 seed: 42
 epochs: 40
 batch_size: 512
-learning_rate: 0.0008
+learning_rate: 1e-3
+learn_rate_scheduler: cosine_annealing
+learn_rate_scheduler_final_factor: 0.1
 gradient_clipping: 5.0
 weight_decay: 5e-4
 plot_interval: 1

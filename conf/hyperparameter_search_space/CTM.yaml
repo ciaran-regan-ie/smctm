@@ -3,6 +3,7 @@
 params:
   model.dropout: interval(0, 0.6)
   learning_rate: interval(1e-4, 1e-3)
-  model.num_layers: choice(1, 2)
   model.d_model: choice(128, 256)
   model.do_layernorm_nlm: choice(true, false)
+  learn_rate_scheduler: choice("none", "cosine_annealing", "linear", "cosine_annealing_warm_restarts", "multi_step")
+  learn_rate_scheduler_final_factor: choice(0.1, 0.01, 0.001)
