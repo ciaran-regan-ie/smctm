@@ -12,4 +12,4 @@ wheels/
 # Data and results
 data/
 outputs/
-.vscode/launch.json
+.vscode/
