@@ -1,11 +1,11 @@
 from omegaconf import DictConfig
 
 from tasks.task import Task
-from tasks.cifarfewshot import CIFARFewShotTask
+from tasks.few_shot_image_classification import FewShotImageClassificationTask
 
-__all__ = ["CIFARFewShot"]
+__all__ = ["FewShotImageClassification"]
 
-_TASKS = {"CIFARFewShot": CIFARFewShotTask}
+_TASKS = {"FewShotImageClassification": FewShotImageClassificationTask}
 
 # Constructs a task based on the config
 def construct_task(cfg: DictConfig, logger=None) -> Task:

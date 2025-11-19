@@ -7,19 +7,19 @@ from torch import nn
 from models.ctm import ContinuousThoughtMachine as CTM
 from models.lstm import LSTM
 from models.backbones import ProtoNetEmbedding
-from models.interactions import CIFARFSDataInteraction
+from models.interactions import FewShotImageClassificationDataInteraction
 
 _MODELS = {"CTM": CTM, "LSTM": LSTM}
 
 def construct_backbone(model_cfg: DictConfig, task_cfg: DictConfig):
-	if task_cfg.type == "CIFARFewShot":
+	if task_cfg.type == "FewShotImageClassification":
 		return ProtoNetEmbedding(3, 64, 64)
 	else:
 		raise ValueError(f"Unsupported task type: {task_cfg.task}")
 
 def construct_data_interaction(model_cfg: DictConfig, task_cfg: DictConfig):
-	if task_cfg.type == "CIFARFewShot":
-		return CIFARFSDataInteraction(backbone=construct_backbone(model_cfg, task_cfg), d_input=model_cfg.d_input)
+	if task_cfg.type == "FewShotImageClassification":
+		return FewShotImageClassificationDataInteraction(backbone=construct_backbone(model_cfg, task_cfg), d_input=model_cfg.d_input)
 	else:
 		raise ValueError(f"Unsupported task type: {task_cfg.task}")
 

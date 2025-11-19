@@ -15,12 +15,12 @@ class FeedForwardDataInteraction(nn.Module):
         output = self.output_proj(features)
         return output, None
 
-class CIFARFSDataInteraction(FeedForwardDataInteraction):
+class FewShotImageClassificationDataInteraction(FeedForwardDataInteraction):
     def __init__(self, backbone, d_input):
         super().__init__(backbone, d_input, use_output_proj=True)
 
     def forward(self, x, hidden_state=None, aux_inputs=None):
-        assert aux_inputs is not None, f"aux_inputs must be provided for CIFARFSDataInteraction"
+        assert aux_inputs is not None, f"aux_inputs must be provided for FewShotImageClassificationDataInteraction"
         
         features = self.backbone(x).flatten(1)
         features = torch.cat([features, aux_inputs], dim=-1)

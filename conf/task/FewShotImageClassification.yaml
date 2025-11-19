@@ -1,7 +1,8 @@
 # @package _global_
 
 task:
-  type: CIFARFewShot
+  type: FewShotImageClassification
+  subtype: CIFAR100
   out_dims: 5  # Number of classes per episode
   iterations: 1  # Number of repeats per image
   nKnovel: 5
