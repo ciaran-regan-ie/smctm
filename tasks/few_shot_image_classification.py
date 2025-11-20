@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
-from torch.nn import functional as F
 from torch.optim import AdamW
 from tqdm import tqdm
 
@@ -47,19 +46,19 @@ class FewShotImageClassificationTask(Task):
             num_test_images=cfg.task.nTestNovel+cfg.task.nTestBase, 
             num_classes=cfg.task.out_dims
         )
-        self.optimiser = AdamW(self.model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
+        self.optimizer = AdamW(self.model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
 
         assert cfg.learn_rate_scheduler in ("none", "cosine_annealing", "linear", "cosine_annealing_warm_restarts", "multi_step")
         if cfg.learn_rate_scheduler == "none":
-            self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimiser, lr_lambda=lambda epoch: 1.0)
+            self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lambda epoch: 1.0)
         elif cfg.learn_rate_scheduler == "cosine_annealing":
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimiser, T_max=cfg.epochs, eta_min=cfg.learning_rate * cfg.learn_rate_scheduler_final_factor)
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=cfg.epochs, eta_min=cfg.learning_rate * cfg.learn_rate_scheduler_final_factor)
         elif cfg.learn_rate_scheduler == "linear":
-            self.scheduler = torch.optim.lr_scheduler.LinearLR(self.optimiser, start_factor=1, end_factor=cfg.learn_rate_scheduler_final_factor, total_iters=cfg.epochs)
+            self.scheduler = torch.optim.lr_scheduler.LinearLR(self.optimizer, start_factor=1, end_factor=cfg.learn_rate_scheduler_final_factor, total_iters=cfg.epochs)
         elif cfg.learn_rate_scheduler == "cosine_annealing_warm_restarts":
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimiser, T_0=10, T_mult=1, eta_min=cfg.learning_rate * cfg.learn_rate_scheduler_final_factor)
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimizer, T_0=10, T_mult=1, eta_min=cfg.learning_rate * cfg.learn_rate_scheduler_final_factor)
         elif cfg.learn_rate_scheduler == "multi_step":
-            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimiser, milestones=[int(cfg.epochs*0.5), int(cfg.epochs*0.75)], gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[int(cfg.epochs*0.5), int(cfg.epochs*0.75)], gamma=0.1)
         
         self.gradient_clipping = cfg.gradient_clipping
         self.init_lazy_modules()
@@ -72,7 +71,7 @@ class FewShotImageClassificationTask(Task):
         pbar = tqdm(self.train_dataloader, leave=False, desc=f"Epoch {epoch}")
         for (inputs, aux_inputs), targets in pbar:
             inputs, aux_inputs, targets = inputs.to(self.device), aux_inputs.to(self.device), targets.to(self.device)
-            self.optimiser.zero_grad()
+            self.optimizer.zero_grad()
             logits = self.model(inputs, aux_inputs)
             loss, info = self.loss(logits, targets)
             loss.backward()
@@ -80,7 +79,7 @@ class FewShotImageClassificationTask(Task):
             if self.gradient_clipping > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clipping)
 
-            self.optimiser.step()
+            self.optimizer.step()
             total_loss += loss.item()
             
             train_accuracy_batch = self.calculate_accuracy(logits, info, targets)

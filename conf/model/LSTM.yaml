@@ -3,8 +3,9 @@
 model:
   type: LSTM
   d_model: 256
-  d_input: 256
   dropout: 0.1
   layer_norm: true
   num_layers: 1
-  plastic: true
+  lstm_type: vanilla
+  hyper_size: 0
+  embedding_size: 0

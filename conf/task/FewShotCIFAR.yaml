@@ -4,6 +4,7 @@ task:
   type: FewShotCIFAR
   out_dims: 5  # Number of classes per episode
   iterations: 1  # Number of repeats per image
+  d_input: 256
   nKnovel: 5
   nKbase: 0
   nExemplars: 1

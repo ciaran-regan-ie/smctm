@@ -2,6 +2,7 @@
 
 task:
   type: FewShotMiniImageNet
+  d_input: 256
   out_dims: 5  # Number of classes per episode
   iterations: 1  # Number of repeats per image
   nKnovel: 5

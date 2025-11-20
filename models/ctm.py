@@ -214,7 +214,6 @@ class ContinuousThoughtMachine(nn.Module):
                  data_interaction,
                  out_dims,
                  d_model,
-                 d_input,
                  memory_length,
                  hidden_dim_nlm,
                  do_layernorm_nlm,
@@ -227,7 +226,6 @@ class ContinuousThoughtMachine(nn.Module):
 
         # --- Core Parameters ---
         self.d_model = d_model
-        self.d_input = d_input
         self.data_interaction = data_interaction
         self.memory_length = memory_length
         self.out_dims = out_dims
@@ -244,7 +242,7 @@ class ContinuousThoughtMachine(nn.Module):
         self.ctm_layers = nn.ModuleList([
             ContinuousThoughtMachineCell(
                 d_model=d_model,
-                d_input=d_input if i == 0 else d_model,
+                d_input=self.data_interaction.d_input if i == 0 else d_model,
                 memory_length=memory_length,
                 hidden_dim_nlm=hidden_dim_nlm,
                 do_layernorm_nlm=do_layernorm_nlm,
@@ -296,6 +294,6 @@ class ContinuousThoughtMachine(nn.Module):
                     activated_state = F.layer_norm(residual + activated_state, normalized_shape=(self.d_model,))
 
             # --- Get Predictions from Final Layer Output ---
-            predictions[..., stepi] = self.output_projector(activated_state)
+            predictions[..., stepi] = self.output_projector(synchronizations[layer_idx][:, :self.d_model])
 
         return predictions

@@ -1,9 +1,5 @@
 from omegaconf import DictConfig, OmegaConf
-from tasks.few_shot_image_classification import (
-    FewShotImageClassificationTask,
-    FewShotDataset,
-    FewShotDataloader,
-)
+from tasks.few_shot_image_classification import FewShotImageClassificationTask
 
 
 class FewShotMiniImageNetTask(FewShotImageClassificationTask):

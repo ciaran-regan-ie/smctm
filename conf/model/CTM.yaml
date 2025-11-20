@@ -3,11 +3,10 @@
 model:
   type: CTM
   d_model: 256
-  d_input: 256
-  memory_length: 10
-  hidden_dim_nlm: 32
+  memory_length: 5
+  hidden_dim_nlm: 8
   do_layernorm_nlm: false
   bias_nlm: false
-  dropout: 0.22
+  dropout: 0.1
   num_layers: 1
   plastic: true

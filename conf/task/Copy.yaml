@@ -1,0 +1,9 @@
+# @package _global_
+
+task:
+  type: Copy
+  copy_dim: 1
+  out_dims: 1
+  copy_sequence_length: 10
+  copy_delay: 10
+  iterations: 1  # Number of repeats per image
