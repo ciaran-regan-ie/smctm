@@ -16,8 +16,8 @@ class FeedForwardDataInteraction(nn.Module):
         return output, None
 
 class FewShotImageClassificationDataInteraction(FeedForwardDataInteraction):
-    def __init__(self, backbone, d_input):
-        super().__init__(backbone, d_input, use_output_proj=True)
+    def __init__(self, backbone, d_input, use_output_proj=True):
+        super().__init__(backbone, d_input, use_output_proj=use_output_proj)
 
     def forward(self, x, hidden_state=None, aux_inputs=None):
         assert aux_inputs is not None, f"aux_inputs must be provided for FewShotImageClassificationDataInteraction"

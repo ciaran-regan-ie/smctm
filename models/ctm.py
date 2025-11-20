@@ -283,17 +283,24 @@ class ContinuousThoughtMachine(nn.Module):
 
             # --- Loop through CTM Layers ---
             for layer_idx, ctm_layer in enumerate(self.ctm_layers):
-
                 residual = activated_state
 
-                # Forward through layer
-                synchronizations[layer_idx], activated_state, ctm_states[layer_idx] = ctm_layer(activated_state, ctm_layer_state=ctm_states[layer_idx], synapse_weights_plastic=self.synch_reshape(synchronizations[layer_idx]) if self.plastic else None)
+                # Forward through synapse layer
+                if self.plastic:
+                    synapse_weights_plastic = self.synch_reshape(synchronizations[layer_idx])
+                else:
+                    synapse_weights_plastic = None
+                synchronizations[layer_idx], activated_state, ctm_states[layer_idx] = ctm_layer(activated_state, ctm_layer_state=ctm_states[layer_idx], synapse_weights_plastic=synapse_weights_plastic)
 
                 # For layers after the first, apply residual connection and layer norm
                 if layer_idx > 0:
                     activated_state = F.layer_norm(residual + activated_state, normalized_shape=(self.d_model,))
 
             # --- Get Predictions from Final Layer Output ---
-            predictions[..., stepi] = self.output_projector(synchronizations[layer_idx][:, :self.d_model])
+            if self.plastic:
+                latent_representation = activated_state # The plastic CTM uses the activated state as it's representation
+            else:
+                latent_representation = synchronizations[layer_idx][:, :self.d_model] # The canon CTM uses synchronization as it's representation
+            predictions[..., stepi] = self.output_projector(latent_representation)
 
         return predictions
